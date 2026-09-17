@@ -7941,7 +7941,8 @@ class _CodeFieldRenderer extends RenderBox implements MouseTrackerAnnotation {
 
     _drawImeComposition(canvas, offset, hasActiveFolds);
 
-    if (focusNode.hasFocus &&
+    if (!_readOnly &&
+        focusNode.hasFocus &&
         caretBlinkController.value > 0.5 &&
         controller.imeComposition == null) {
       final caretInfo = _getCaretInfo();
@@ -7995,7 +7996,7 @@ class _CodeFieldRenderer extends RenderBox implements MouseTrackerAnnotation {
         ..style = PaintingStyle.fill;
 
       if (selection.isCollapsed) {
-        if (_showBubble || _selectionActive) {
+        if (!_readOnly && (_showBubble || _selectionActive)) {
           final caretInfo = _getCaretInfo();
           final handleSize = caretInfo.height;
 
