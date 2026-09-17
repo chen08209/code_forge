@@ -10,7 +10,6 @@ environment:
 dependencies:
   flutter:
     sdk: flutter  
-  markdown_widget: ^2.3.2+8
   re_highlight: ^0.0.3
   web_socket_channel: ^3.0.3
   flutter_colorpicker: ^1.1.0

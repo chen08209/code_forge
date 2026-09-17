@@ -101,7 +101,7 @@ To see working examples of all CodeForge features including AI Code Completion, 
 
 #### LSP Features
 - **Intelligent Completions** — Context-aware code suggestions with auto-import
-- **Hover Documentation** — Rich markdown tooltips with type information
+- **Hover Documentation** — Tooltips with type information and highlighted code blocks
 - **Real-time Diagnostics** — Errors and warnings with quick fixes
 - **Semantic Highlighting** — Token-based coloring with modifiers
 - **Signature Help** — Function signatures and parameter hints

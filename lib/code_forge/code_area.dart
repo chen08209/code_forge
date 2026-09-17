@@ -9,13 +9,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
-import 'package:markdown_widget/markdown_widget.dart';
 import 'package:re_highlight/re_highlight.dart';
 import 'package:re_highlight/styles/lightfair.dart';
 import 'package:vector_math/vector_math_64.dart' show Vector3;
 
 import '../code_forge.dart';
 import '../src/rust/api/editor.dart';
+import 'documentation_view.dart';
 
 const int kSemanticTokenViewportPaddingLines = 1500;
 const int kExactWrappedHeightThreshold = 512;
@@ -3139,47 +3139,17 @@ class _CodeForgeState extends State<CodeForge>
                                           padding: const EdgeInsets.only(
                                             left: 6.5,
                                           ),
-                                          child: MarkdownBlock(
+                                          child: DocumentationView(
                                             data: signature.documentation,
-                                            config: MarkdownConfig.darkConfig.copy(
-                                              configs: [
-                                                PConfig(
-                                                  textStyle: _hoverDetailsStyle
-                                                      .textStyle,
-                                                ),
-                                                PreConfig(
-                                                  language:
-                                                      _controller
-                                                          .lspConfig
-                                                          ?.languageId
-                                                          .toLowerCase() ??
-                                                      'dart',
-                                                  theme: _editorTheme,
-                                                  textStyle: TextStyle(
-                                                    fontSize: _hoverDetailsStyle
-                                                        .textStyle
-                                                        .fontSize,
-                                                  ),
-                                                  styleNotMatched: TextStyle(
-                                                    color: _editorTheme['root']!
-                                                        .color,
-                                                  ),
-                                                  decoration: BoxDecoration(
-                                                    color: _editorTheme['root']!
-                                                        .backgroundColor!,
-                                                    borderRadius:
-                                                        BorderRadius.zero,
-                                                    border: Border.all(
-                                                      width: 0.2,
-                                                      color:
-                                                          _editorTheme['root']!
-                                                              .color ??
-                                                          Colors.grey,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
+                                            language: _language,
+                                            extraLanguages:
+                                                widget.extraLanguages,
+                                            languageId: _controller
+                                                .lspConfig
+                                                ?.languageId,
+                                            editorTheme: _editorTheme,
+                                            textStyle:
+                                                _hoverDetailsStyle.textStyle,
                                           ),
                                         ),
                                       ],
@@ -3687,50 +3657,17 @@ class _CodeForgeState extends State<CodeForge>
                                                   .withAlpha(100),
                                               child: SingleChildScrollView(
                                                 controller: completionScrlCtrl,
-                                                child: MarkdownBlock(
+                                                child: DocumentationView(
                                                   data: _selectedSuggestionMd!,
-                                                  config: MarkdownConfig.darkConfig.copy(
-                                                    configs: [
-                                                      PConfig(
-                                                        textStyle:
-                                                            _hoverDetailsStyle
-                                                                .textStyle,
-                                                      ),
-                                                      PreConfig(
-                                                        language:
-                                                            _controller
-                                                                .lspConfig
-                                                                ?.languageId
-                                                                .toLowerCase() ??
-                                                            'dart',
-                                                        theme: _editorTheme,
-                                                        textStyle: TextStyle(
-                                                          fontSize:
-                                                              _hoverDetailsStyle
-                                                                  .textStyle
-                                                                  .fontSize,
-                                                        ),
-                                                        styleNotMatched: TextStyle(
-                                                          color:
-                                                              _editorTheme['root']!
-                                                                  .color,
-                                                        ),
-                                                        decoration: BoxDecoration(
-                                                          color: _editorTheme['root']!
-                                                              .backgroundColor!,
-                                                          borderRadius:
-                                                              BorderRadius.zero,
-                                                          border: Border.all(
-                                                            width: 0.2,
-                                                            color:
-                                                                _editorTheme['root']!
-                                                                    .color ??
-                                                                Colors.grey,
-                                                          ),
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ),
+                                                  language: _language,
+                                                  extraLanguages:
+                                                      widget.extraLanguages,
+                                                  languageId: _controller
+                                                      .lspConfig
+                                                      ?.languageId,
+                                                  editorTheme: _editorTheme,
+                                                  textStyle: _hoverDetailsStyle
+                                                      .textStyle,
                                                 ),
                                               ),
                                             ),
@@ -3928,50 +3865,17 @@ class _CodeForgeState extends State<CodeForge>
                                               child: SingleChildScrollView(
                                                 controller:
                                                     hoverScrollController,
-                                                child: MarkdownBlock(
+                                                child: DocumentationView(
                                                   data: hoverMessage,
-                                                  config: MarkdownConfig.darkConfig.copy(
-                                                    configs: [
-                                                      PConfig(
-                                                        textStyle:
-                                                            _hoverDetailsStyle
-                                                                .textStyle,
-                                                      ),
-                                                      PreConfig(
-                                                        language:
-                                                            _controller
-                                                                .lspConfig
-                                                                ?.languageId
-                                                                .toLowerCase() ??
-                                                            "dart",
-                                                        theme: _editorTheme,
-                                                        textStyle: TextStyle(
-                                                          fontSize:
-                                                              _hoverDetailsStyle
-                                                                  .textStyle
-                                                                  .fontSize,
-                                                        ),
-                                                        styleNotMatched: TextStyle(
-                                                          color:
-                                                              _editorTheme['root']!
-                                                                  .color,
-                                                        ),
-                                                        decoration: BoxDecoration(
-                                                          color: _editorTheme['root']!
-                                                              .backgroundColor!,
-                                                          borderRadius:
-                                                              BorderRadius.zero,
-                                                          border: Border.all(
-                                                            width: 0.2,
-                                                            color:
-                                                                _editorTheme['root']!
-                                                                    .color ??
-                                                                Colors.grey,
-                                                          ),
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ),
+                                                  language: _language,
+                                                  extraLanguages:
+                                                      widget.extraLanguages,
+                                                  languageId: _controller
+                                                      .lspConfig
+                                                      ?.languageId,
+                                                  editorTheme: _editorTheme,
+                                                  textStyle: _hoverDetailsStyle
+                                                      .textStyle,
                                                 ),
                                               ),
                                             ),
