@@ -272,6 +272,22 @@ class CodeForge extends StatefulWidget {
   )?
   finderBuilder;
 
+  /// Shows a custom context menu instead of the built-in one.
+  final void Function(
+    BuildContext context,
+    CodeForgeContextMenuRequest request,
+  )?
+  onContextMenu;
+
+  /// Builds the vertical scrollbar around the editor instead of the built-in
+  /// one; [scrollbarDecoration] no longer applies to it.
+  final Widget Function(
+    BuildContext context,
+    CodeForgeScrollbarDetails details,
+    Widget child,
+  )?
+  scrollbarBuilder;
+
   final int _tabSize;
 
   /// Creates a [CodeForge] code editor widget.
@@ -317,6 +333,8 @@ class CodeForge extends StatefulWidget {
     this.extraLanguages = const [],
     this.finderBuilder,
     this.findController,
+    this.onContextMenu,
+    this.scrollbarBuilder,
   }) : _tabSize = tabSize ?? (useSpaceAsTab ? 2 : 1);
 
   @override
@@ -365,6 +383,7 @@ class _CodeForgeState extends State<CodeForge> with TickerProviderStateMixin {
   final _actionScrollController = ScrollController();
   final Map<String, String> _suggestionDetailsCache = {};
   final GlobalKey _codeFieldKey = GlobalKey();
+  final GlobalKey _editorStackKey = GlobalKey();
   TextInputConnection? _connection;
   StreamSubscription? _lspResponsesSubscription;
   bool _isHovering = false, _isSignatureInvoked = false;
@@ -416,7 +435,8 @@ class _CodeForgeState extends State<CodeForge> with TickerProviderStateMixin {
     _hoverContentNotifier = ValueNotifier(null);
     _aiNotifier = ValueNotifier(null);
     _aiOffsetNotifier = ValueNotifier(null);
-    _contextMenuOffsetNotifier = ValueNotifier(const Offset(-1, -1));
+    _contextMenuOffsetNotifier = ValueNotifier(const Offset(-1, -1))
+      ..addListener(_handleContextMenuRequest);
     _selectionActiveNotifier = ValueNotifier(false);
     _isHoveringPopup = ValueNotifier<bool>(false);
     _controller.userCodeAction = _fetchCodeActionsForCurrentPosition;
@@ -1166,6 +1186,77 @@ class _CodeForgeState extends State<CodeForge> with TickerProviderStateMixin {
     _controller.pressEndKey(isShiftPressed: withShift);
   }
 
+  void _handleContextMenuRequest() {
+    final onContextMenu = widget.onContextMenu;
+    final offset = _contextMenuOffsetNotifier.value;
+    if (onContextMenu == null || offset.dx < 0 || offset.dy < 0) return;
+    _contextMenuOffsetNotifier.value = const Offset(-1, -1);
+    final stack = _editorStackKey.currentContext?.findRenderObject();
+    if (stack is! RenderBox || !stack.attached) return;
+    final selection = _controller.selection;
+    onContextMenu(
+      context,
+      CodeForgeContextMenuRequest(
+        globalPosition: stack.localToGlobal(offset),
+        hasSelection: !selection.isCollapsed,
+        isAllSelected:
+            selection.start == 0 && selection.end == _controller.length,
+        readOnly: _readOnly,
+        copy: _controller.copy,
+        cut: _controller.cut,
+        paste: () => _controller.paste(),
+        selectAll: _controller.selectAll,
+      ),
+    );
+  }
+
+  Widget _buildVerticalScrollbar(BuildContext context, Widget child) {
+    final scrollbarBuilder = widget.scrollbarBuilder;
+    if (scrollbarBuilder != null) {
+      return scrollbarBuilder(
+        context,
+        CodeForgeScrollbarDetails(
+          controller: _vscrollController,
+          firstVisibleLine: _scrollbarLineNumberIndicator,
+        ),
+        child,
+      );
+    }
+    return CustomScrollbar(
+      controller: _vscrollController,
+      lineNumberNotifier: _scrollbarLineNumberIndicator,
+      textDirection: widget.textDirection,
+      borderRadius: _scrollbarDecoration.borderRadius,
+      showLineNumberIndicator: _scrollbarDecoration.showLineNumberIndicator,
+      thickness: _scrollbarDecoration.thickness,
+      thumbColor: _scrollbarDecoration.thumbColor,
+      interactive: _scrollbarDecoration.interactive,
+      crossAxisMargin: _scrollbarDecoration.crossAxisMargin,
+      mainAxisMargin: _scrollbarDecoration.mainAxisMargin,
+      scrollbarOrientation: _scrollbarDecoration.scrollbarOrientation,
+      trackBorderColor: _scrollbarDecoration.trackBorderColor,
+      fadeDuration: _scrollbarDecoration.fadeDuration,
+      timeToFade: _scrollbarDecoration.timeToFade,
+      trackRadius: _scrollbarDecoration.trackRadius,
+      trackVisibility: _scrollbarDecoration.trackVisibility,
+      minOverscrollLength: _scrollbarDecoration.minOverscrollLength,
+      minThumbLength: _scrollbarDecoration.minThumbLength,
+      padding: _scrollbarDecoration.padding,
+      pressDuration: _scrollbarDecoration.pressDuration,
+      trackColor: _scrollbarDecoration.trackColor,
+      notificationPredicate: _scrollbarDecoration.notificationPredicate,
+      thumbVisibility: _isHovering,
+      lineNumberStyle:
+          _scrollbarDecoration.lineNumberStyle ??
+          TextStyle(
+            color: _editorTheme['root']?.backgroundColor ?? Colors.black,
+            fontSize: widget.textStyle?.fontSize ?? 14,
+            fontFamily: widget.textStyle?.fontFamily,
+          ),
+      child: child,
+    );
+  }
+
   CodeForgeKeyboardShortcuts get _shortcuts =>
       widget.keyboardShotcuts ??
       CodeForgeKeyboardShortcuts.forPlatform(defaultTargetPlatform);
@@ -1632,47 +1723,13 @@ class _CodeForgeState extends State<CodeForge> with TickerProviderStateMixin {
               ),
             Expanded(
               child: Stack(
+                key: _editorStackKey,
                 children: [
                   Directionality(
                     textDirection: widget.textDirection,
-                    child: CustomScrollbar(
-                      controller: _vscrollController,
-                      lineNumberNotifier: _scrollbarLineNumberIndicator,
-                      textDirection: widget.textDirection,
-                      borderRadius: _scrollbarDecoration.borderRadius,
-                      showLineNumberIndicator:
-                          _scrollbarDecoration.showLineNumberIndicator,
-                      thickness: _scrollbarDecoration.thickness,
-                      thumbColor: _scrollbarDecoration.thumbColor,
-                      interactive: _scrollbarDecoration.interactive,
-                      crossAxisMargin: _scrollbarDecoration.crossAxisMargin,
-                      mainAxisMargin: _scrollbarDecoration.mainAxisMargin,
-                      scrollbarOrientation:
-                          _scrollbarDecoration.scrollbarOrientation,
-                      trackBorderColor: _scrollbarDecoration.trackBorderColor,
-                      fadeDuration: _scrollbarDecoration.fadeDuration,
-                      timeToFade: _scrollbarDecoration.timeToFade,
-                      trackRadius: _scrollbarDecoration.trackRadius,
-                      trackVisibility: _scrollbarDecoration.trackVisibility,
-                      minOverscrollLength:
-                          _scrollbarDecoration.minOverscrollLength,
-                      minThumbLength: _scrollbarDecoration.minThumbLength,
-                      padding: _scrollbarDecoration.padding,
-                      pressDuration: _scrollbarDecoration.pressDuration,
-                      trackColor: _scrollbarDecoration.trackColor,
-                      notificationPredicate:
-                          _scrollbarDecoration.notificationPredicate,
-                      thumbVisibility: _isHovering,
-                      lineNumberStyle:
-                          _scrollbarDecoration.lineNumberStyle ??
-                          TextStyle(
-                            color:
-                                _editorTheme['root']?.backgroundColor ??
-                                Colors.black,
-                            fontSize: widget.textStyle?.fontSize ?? 14,
-                            fontFamily: widget.textStyle?.fontFamily,
-                          ),
-                      child: Transform(
+                    child: _buildVerticalScrollbar(
+                      context,
+                      Transform(
                         alignment: Alignment.center,
                         transform: widget.textDirection == TextDirection.rtl
                             ? (Matrix4.identity()

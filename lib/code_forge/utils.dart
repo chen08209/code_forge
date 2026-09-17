@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -636,6 +637,51 @@ class AnyShortcutActivator extends ShortcutActivator {
         .map((activator) => activator.debugDescribeKeys())
         .join(' | ');
   }
+}
+
+/// A request to show the context menu, passed to [CodeForge.onContextMenu].
+class CodeForgeContextMenuRequest {
+  /// Where the menu was requested, in global coordinates.
+  final Offset globalPosition;
+
+  /// Whether the editor has a non-empty selection.
+  final bool hasSelection;
+
+  /// Whether the whole document is selected.
+  final bool isAllSelected;
+
+  /// Whether the editor is read-only.
+  final bool readOnly;
+
+  final VoidCallback copy;
+  final VoidCallback cut;
+  final VoidCallback paste;
+  final VoidCallback selectAll;
+
+  const CodeForgeContextMenuRequest({
+    required this.globalPosition,
+    required this.hasSelection,
+    required this.isAllSelected,
+    required this.readOnly,
+    required this.copy,
+    required this.cut,
+    required this.paste,
+    required this.selectAll,
+  });
+}
+
+/// What [CodeForge.scrollbarBuilder] needs to build the vertical scrollbar.
+class CodeForgeScrollbarDetails {
+  /// The vertical scroll controller of the editor.
+  final ScrollController controller;
+
+  /// The 1-based line at the top of the viewport.
+  final ValueListenable<int> firstVisibleLine;
+
+  const CodeForgeScrollbarDetails({
+    required this.controller,
+    required this.firstVisibleLine,
+  });
 }
 
 /// Create a custom entry for the context menu (The menu that appears on right click).
