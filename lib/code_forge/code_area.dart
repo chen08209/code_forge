@@ -1498,7 +1498,6 @@ class _CodeForgeState extends State<CodeForge> with TickerProviderStateMixin {
 
     int newOffset = lineStart;
     for (final match in wordMatches) {
-      if (match.end >= lineText.length) break;
       newOffset = lineStart + match.start;
     }
 
