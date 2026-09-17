@@ -341,7 +341,8 @@ class CodeForge extends StatefulWidget {
   State<CodeForge> createState() => _CodeForgeState();
 }
 
-class _CodeForgeState extends State<CodeForge> with TickerProviderStateMixin {
+class _CodeForgeState extends State<CodeForge>
+    with TickerProviderStateMixin, WidgetsBindingObserver {
   late final ScrollController _hscrollController, _vscrollController;
   late final CodeForgeController _controller;
   late final FocusNode _focusNode;
@@ -393,6 +394,7 @@ class _CodeForgeState extends State<CodeForge> with TickerProviderStateMixin {
   List<LspSemanticToken>? _semanticTokens;
   List<Map<String, dynamic>> _extraText = [];
   int _sugSelIndex = 0, _actionSelIndex = 0;
+  double _lastBottomViewInset = 0;
   String? _selectedSuggestionMd;
   Timer? _hoverTimer, _semanticTokenTimer, _hoverRequestTimer;
   ({String key, Map<String, int> lineChar})? _queuedHoverRequest;
@@ -400,6 +402,7 @@ class _CodeForgeState extends State<CodeForge> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _controller = widget.controller ?? CodeForgeController();
 
     _controller.getFloatingCursorStartPosition = () {
@@ -1070,7 +1073,23 @@ class _CodeForgeState extends State<CodeForge> with TickerProviderStateMixin {
   }
 
   @override
+  void didChangeMetrics() {
+    if (!mounted) return;
+    final bottomInset = View.of(context).viewInsets.bottom;
+    final insetGrew = bottomInset > _lastBottomViewInset;
+    _lastBottomViewInset = bottomInset;
+    if (!insetGrew || !_focusNode.hasFocus) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final renderObject = _codeFieldKey.currentContext?.findRenderObject();
+      if (renderObject is _CodeFieldRenderer && renderObject.attached) {
+        renderObject._ensureCaretVisible();
+      }
+    });
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _controller.removeListener(_controllerListener);
     _controller.semanticTokens.removeListener(_semanticTokensListener);
     _vscrollController.removeListener(_scrollbarLineNumberListener);
