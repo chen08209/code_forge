@@ -131,8 +131,8 @@ class CodeForge extends StatefulWidget {
   final ScrollPhysics verticalScrollPhysics;
 
   /// Keyboard shortcuts used by the [CodeForge] editor.<br>
-  /// Most of the keyboard shortcuts, except the core operations like cut, copy, paste, select all, undo, redo
-  /// can be modified by editing the hardcoded shortcuts defined in the [CodeForgeKeyboardShotcuts] class.<br>
+  /// Defaults to [CodeForgeKeyboardShortcuts.forPlatform] for the current
+  /// target platform.<br>
   /// <br>
   /// eg:
   ///
@@ -147,7 +147,7 @@ class CodeForge extends StatefulWidget {
   ///
   /// **Note: There is no exception handling implemented to prevent the usage of same shortcut keys on multiple operations.
   /// Using the same shortcut on multiple operations may causes undefined behaviour.**
-  final CodeForgeKeyboardShortcuts keyboardShotcuts;
+  final CodeForgeKeyboardShortcuts? keyboardShotcuts;
 
   /// Styling options for text selection and cursor.
   final CodeSelectionStyle? selectionStyle;
@@ -289,7 +289,7 @@ class CodeForge extends StatefulWidget {
     this.verticalScrollPhysics = const ClampingScrollPhysics(),
     this.textStyle,
     this.innerPadding,
-    this.keyboardShotcuts = const CodeForgeKeyboardShortcuts(),
+    this.keyboardShotcuts,
     this.customCodeSnippets,
     this.customContextMenuItems,
     this.readOnly = false,
@@ -364,7 +364,6 @@ class _CodeForgeState extends State<CodeForge> with TickerProviderStateMixin {
   final _suggScrollController = ScrollController();
   final _actionScrollController = ScrollController();
   final Map<String, String> _suggestionDetailsCache = {};
-  final _isMac = Platform.isMacOS;
   final GlobalKey _codeFieldKey = GlobalKey();
   TextInputConnection? _connection;
   StreamSubscription? _lspResponsesSubscription;
@@ -1167,6 +1166,67 @@ class _CodeForgeState extends State<CodeForge> with TickerProviderStateMixin {
     _controller.pressEndKey(isShiftPressed: withShift);
   }
 
+  CodeForgeKeyboardShortcuts get _shortcuts =>
+      widget.keyboardShotcuts ??
+      CodeForgeKeyboardShortcuts.forPlatform(defaultTargetPlatform);
+
+  String _shortcutLabel(ShortcutActivator activator) {
+    final single = switch (activator) {
+      SingleActivator() => activator,
+      AnyShortcutActivator(:final activators) =>
+        activators.whereType<SingleActivator>().firstOrNull,
+      _ => null,
+    };
+    if (single == null) return '';
+    final isApple = switch (defaultTargetPlatform) {
+      TargetPlatform.macOS || TargetPlatform.iOS => true,
+      _ => false,
+    };
+    final key = single.trigger.keyLabel;
+    if (isApple) {
+      return [
+        if (single.control) '⌃',
+        if (single.alt) '⌥',
+        if (single.shift) '⇧',
+        if (single.meta) '⌘',
+        key,
+      ].join();
+    }
+    return [
+      if (single.control) 'Ctrl',
+      if (single.alt) 'Alt',
+      if (single.shift) 'Shift',
+      if (single.meta) 'Meta',
+      key,
+    ].join('+');
+  }
+
+  void _showFinder({required bool replace}) {
+    if (_findController.isActive) {
+      _findController.findInputFocusNode.requestFocus();
+    }
+    _findController.isActive = true;
+    _findController.isReplaceMode = replace;
+  }
+
+  void _deleteToLineStart() {
+    final selection = _controller.selection;
+    if (!selection.isCollapsed) {
+      _controller.replaceRange(selection.start, selection.end, '');
+      return;
+    }
+    final caret = selection.extentOffset;
+    if (caret <= 0) return;
+    final lineStart = _controller.getLineStartOffset(
+      _controller.getLineAtOffset(caret),
+    );
+    _controller.replaceRange(
+      caret == lineStart ? caret - 1 : lineStart,
+      caret,
+      '',
+    );
+  }
+
   Widget _buildContextMenu() {
     return ValueListenableBuilder<Offset>(
       valueListenable: _contextMenuOffsetNotifier,
@@ -1312,24 +1372,24 @@ class _CodeForgeState extends State<CodeForge> with TickerProviderStateMixin {
                       if (!_controller.readOnly)
                         _buildDesktopContextMenuItem(
                           'Cut',
-                          'Ctrl+X',
+                          _shortcutLabel(_shortcuts.cut),
                           () => _controller.cut(),
                         ),
                       _buildDesktopContextMenuItem(
                         'Copy',
-                        'Ctrl+C',
+                        _shortcutLabel(_shortcuts.copy),
                         () => _controller.copy(),
                       ),
                     ],
                     if (!_controller.readOnly)
                       _buildDesktopContextMenuItem(
                         'Paste',
-                        'Ctrl+V',
+                        _shortcutLabel(_shortcuts.paste),
                         () => _controller.paste(),
                       ),
                     _buildDesktopContextMenuItem(
                       'Select All',
-                      'Ctrl+A',
+                      _shortcutLabel(_shortcuts.selectAll),
                       () => _controller.selectAll(),
                     ),
                     ...widget.customContextMenuItems?.map(
@@ -1694,8 +1754,7 @@ class _CodeForgeState extends State<CodeForge> with TickerProviderStateMixin {
                                                   return KeyEventResult.ignored;
                                                 }
 
-                                                final shrtCt =
-                                                    widget.keyboardShotcuts;
+                                                final shrtCt = _shortcuts;
                                                 if (shrtCt.duplicate.accepts(
                                                   event,
                                                   HardwareKeyboard.instance,
@@ -1833,14 +1892,7 @@ class _CodeForgeState extends State<CodeForge> with TickerProviderStateMixin {
                                                   event,
                                                   HardwareKeyboard.instance,
                                                 )) {
-                                                  final isAlt = HardwareKeyboard
-                                                      .instance
-                                                      .isAltPressed;
-                                                  _findController.isActive =
-                                                      true;
-                                                  _findController
-                                                          .isReplaceMode =
-                                                      isAlt;
+                                                  _showFinder(replace: false);
                                                   return KeyEventResult.handled;
                                                 }
 
@@ -1849,18 +1901,10 @@ class _CodeForgeState extends State<CodeForge> with TickerProviderStateMixin {
                                                       event,
                                                       HardwareKeyboard.instance,
                                                     )) {
-                                                  if (!HardwareKeyboard
-                                                      .instance
-                                                      .isMetaPressed) {
-                                                    _findController.isActive =
-                                                        true;
-                                                    _findController
-                                                            .isReplaceMode =
-                                                        true;
-
-                                                    return KeyEventResult
-                                                        .handled;
-                                                  }
+                                                  _showFinder(
+                                                    replace: !_readOnly,
+                                                  );
+                                                  return KeyEventResult.handled;
                                                 }
 
                                                 if (shrtCt.lspSignatureHelp
@@ -1992,6 +2036,40 @@ class _CodeForgeState extends State<CodeForge> with TickerProviderStateMixin {
                                                     isShiftPressed: true,
                                                   );
                                                   _commonKeyFunctions();
+                                                  return KeyEventResult.handled;
+                                                }
+
+                                                if (shrtCt.jumpToLineStart
+                                                    .accepts(
+                                                      event,
+                                                      HardwareKeyboard.instance,
+                                                    )) {
+                                                  _handleHomeKey(false);
+                                                  _commonKeyFunctions();
+                                                  return KeyEventResult.handled;
+                                                }
+
+                                                if (shrtCt.jumpToLineEnd
+                                                    .accepts(
+                                                      event,
+                                                      HardwareKeyboard.instance,
+                                                    )) {
+                                                  _handleEndKey(false);
+                                                  _commonKeyFunctions();
+                                                  return KeyEventResult.handled;
+                                                }
+
+                                                if (shrtCt.deleteToLineStart
+                                                        ?.accepts(
+                                                          event,
+                                                          HardwareKeyboard
+                                                              .instance,
+                                                        ) ??
+                                                    false) {
+                                                  if (!_readOnly) {
+                                                    _deleteToLineStart();
+                                                    _commonKeyFunctions();
+                                                  }
                                                   return KeyEventResult.handled;
                                                 }
 
@@ -2199,10 +2277,6 @@ class _CodeForgeState extends State<CodeForge> with TickerProviderStateMixin {
 
                                                 if (event is KeyDownEvent ||
                                                     event is KeyRepeatEvent) {
-                                                  final isAltPressed =
-                                                      HardwareKeyboard
-                                                          .instance
-                                                          .isAltPressed;
                                                   final isShiftPressed =
                                                       HardwareKeyboard
                                                           .instance
@@ -2359,131 +2433,74 @@ class _CodeForgeState extends State<CodeForge> with TickerProviderStateMixin {
                                                     }
                                                   }
 
-                                                  if (isCtrlPressed) {
-                                                    switch (event.logicalKey) {
-                                                      case LogicalKeyboardKey
-                                                          .keyC:
-                                                        _controller.copy();
-                                                        return KeyEventResult
-                                                            .handled;
-                                                      case LogicalKeyboardKey
-                                                          .keyX:
-                                                        if (_readOnly) {
-                                                          return KeyEventResult
-                                                              .handled;
-                                                        }
-                                                        _controller.cut();
-                                                        return KeyEventResult
-                                                            .handled;
-                                                      case LogicalKeyboardKey
-                                                          .keyV:
-                                                        if (_readOnly) {
-                                                          return KeyEventResult
-                                                              .handled;
-                                                        }
-                                                        _controller.paste();
-                                                        return KeyEventResult
-                                                            .handled;
-                                                      case LogicalKeyboardKey
-                                                          .keyA:
-                                                        _controller.selectAll();
-                                                        return KeyEventResult
-                                                            .handled;
-                                                      case LogicalKeyboardKey
-                                                          .keyZ:
-                                                        if (_readOnly) {
-                                                          return KeyEventResult
-                                                              .handled;
-                                                        }
-                                                        if (isShiftPressed) {
-                                                          if (_undoRedoController
-                                                              .canRedo) {
-                                                            _undoRedoController
-                                                                .redo();
-                                                            _commonKeyFunctions();
-                                                          }
-                                                        } else if (_undoRedoController
-                                                            .canUndo) {
-                                                          _undoRedoController
-                                                              .undo();
-                                                          _commonKeyFunctions();
-                                                        }
-                                                        return KeyEventResult
-                                                            .handled;
-                                                      case LogicalKeyboardKey
-                                                          .keyY:
-                                                        if (_readOnly) {
-                                                          return KeyEventResult
-                                                              .handled;
-                                                        }
-                                                        if (_undoRedoController
-                                                            .canRedo) {
-                                                          _undoRedoController
-                                                              .redo();
-                                                          _commonKeyFunctions();
-                                                        }
-                                                        return KeyEventResult
-                                                            .handled;
-                                                      default:
-                                                        break;
-                                                    }
+                                                  if (shrtCt.copy.accepts(
+                                                    event,
+                                                    HardwareKeyboard.instance,
+                                                  )) {
+                                                    _controller.copy();
+                                                    return KeyEventResult
+                                                        .handled;
                                                   }
 
-                                                  if (isAltPressed &&
-                                                      !isCtrlPressed &&
-                                                      _isMac) {
-                                                    switch (event.logicalKey) {
-                                                      case LogicalKeyboardKey
-                                                          .arrowLeft:
-                                                        if (widget
-                                                                .textDirection ==
-                                                            TextDirection.rtl) {
-                                                          _moveWordRight(
-                                                            isShiftPressed,
-                                                          );
-                                                        } else {
-                                                          _moveWordLeft(
-                                                            isShiftPressed,
-                                                          );
-                                                        }
-                                                        _commonKeyFunctions();
-                                                        return KeyEventResult
-                                                            .handled;
-                                                      case LogicalKeyboardKey
-                                                          .arrowRight:
-                                                        if (widget
-                                                                .textDirection ==
-                                                            TextDirection.rtl) {
-                                                          _moveWordLeft(
-                                                            isShiftPressed,
-                                                          );
-                                                        } else {
-                                                          _moveWordRight(
-                                                            isShiftPressed,
-                                                          );
-                                                        }
-                                                        _commonKeyFunctions();
-                                                        return KeyEventResult
-                                                            .handled;
-                                                      case LogicalKeyboardKey
-                                                          .backspace:
-                                                        if (!_readOnly) {
-                                                          _deleteWordBackward();
-                                                          _commonKeyFunctions();
-                                                        }
-                                                        return KeyEventResult
-                                                            .handled;
-                                                      case LogicalKeyboardKey
-                                                          .delete:
-                                                        if (!_readOnly) {
-                                                          _deleteWordForward();
-                                                          _commonKeyFunctions();
-                                                        }
-                                                        return KeyEventResult
-                                                            .handled;
-                                                      default:
-                                                        break;
+                                                  if (shrtCt.cut.accepts(
+                                                    event,
+                                                    HardwareKeyboard.instance,
+                                                  )) {
+                                                    if (!_readOnly) {
+                                                      _controller.cut();
                                                     }
+                                                    return KeyEventResult
+                                                        .handled;
+                                                  }
+
+                                                  if (shrtCt.paste.accepts(
+                                                    event,
+                                                    HardwareKeyboard.instance,
+                                                  )) {
+                                                    if (!_readOnly) {
+                                                      _controller.paste();
+                                                    }
+                                                    return KeyEventResult
+                                                        .handled;
+                                                  }
+
+                                                  if (shrtCt.selectAll.accepts(
+                                                    event,
+                                                    HardwareKeyboard.instance,
+                                                  )) {
+                                                    _controller.selectAll();
+                                                    return KeyEventResult
+                                                        .handled;
+                                                  }
+
+                                                  if (shrtCt.undo.accepts(
+                                                    event,
+                                                    HardwareKeyboard.instance,
+                                                  )) {
+                                                    if (!_readOnly &&
+                                                        _undoRedoController
+                                                            .canUndo) {
+                                                      _undoRedoController
+                                                          .undo();
+                                                      _commonKeyFunctions();
+                                                    }
+                                                    return KeyEventResult
+                                                        .handled;
+                                                  }
+
+                                                  if (shrtCt.redo.accepts(
+                                                    event,
+                                                    HardwareKeyboard.instance,
+                                                  )) {
+                                                    if (!_readOnly &&
+                                                        _undoRedoController
+                                                            .canRedo) {
+                                                      _undoRedoController
+                                                          .redo();
+                                                      _commonKeyFunctions();
+                                                    }
+                                                    return KeyEventResult
+                                                        .handled;
                                                   }
 
                                                   if (isShiftPressed &&
@@ -2629,6 +2646,31 @@ class _CodeForgeState extends State<CodeForge> with TickerProviderStateMixin {
 
                                                     case LogicalKeyboardKey
                                                         .escape:
+                                                      final hasTransientUi =
+                                                          _hoverNotifier
+                                                                  .value !=
+                                                              null ||
+                                                          _lspSignatureNotifier
+                                                                  .value !=
+                                                              null ||
+                                                          _isSignatureInvoked ||
+                                                          _contextMenuOffsetNotifier
+                                                                  .value
+                                                                  .dx >=
+                                                              0 ||
+                                                          _findController
+                                                              .isActive ||
+                                                          _aiNotifier.value !=
+                                                              null ||
+                                                          _suggestionNotifier
+                                                                  .value !=
+                                                              null ||
+                                                          _controller
+                                                              .hasMultiCursors;
+                                                      if (!hasTransientUi) {
+                                                        return KeyEventResult
+                                                            .ignored;
+                                                      }
                                                       _hoverTimer?.cancel();
                                                       _lspSignatureNotifier
                                                               .value =
