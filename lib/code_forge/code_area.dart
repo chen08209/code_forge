@@ -11540,8 +11540,9 @@ class _CodeFieldRenderer extends RenderBox implements MouseTrackerAnnotation {
           !controller.connection!.attached ||
           !focusNode.hasFocus) {
         focusNode.requestFocus();
-        if (focusNode.hasFocus) {
-          controller.connection!.setEditingState(
+        final connection = controller.connection;
+        if (focusNode.hasFocus && (connection?.attached ?? false)) {
+          connection!.setEditingState(
             TextEditingValue(
               text: controller.text,
               selection: controller.selection,
