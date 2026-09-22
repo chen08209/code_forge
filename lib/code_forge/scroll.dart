@@ -79,8 +79,8 @@ class Render2DCodeField extends RenderTwoDimensionalViewport {
     if (child != null) {
       child.layout(
         BoxConstraints(
-          minHeight: 0,
-          minWidth: 0,
+          minHeight: viewportDimension.height,
+          minWidth: viewportDimension.width,
           maxWidth: lineWrap ? viewportDimension.width : double.infinity,
           maxHeight: double.infinity,
         ),

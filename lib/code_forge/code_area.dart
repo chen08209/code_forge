@@ -7261,23 +7261,15 @@ class _CodeFieldRenderer extends RenderBox implements MouseTrackerAnnotation {
           _cachedTotalHeight +
           (innerPadding?.top ?? 0) +
           _totalVirtualExtraHeight;
-      final contentHeight = max(
-        computedContentHeight,
-        constraints.maxHeight.isFinite
-            ? constraints.maxHeight
-            : MediaQuery.of(context).size.height,
-      );
       final computedWidth = lineWrap
           ? (constraints.maxWidth.isFinite
                 ? constraints.maxWidth
                 : MediaQuery.of(context).size.width)
           : _longLineWidth + (innerPadding?.left ?? 0) + _gutterWidth;
-      final minWidth = lineWrap ? 0.0 : MediaQuery.of(context).size.width;
-      final contentWidth = max(computedWidth, minWidth);
       size = constraints.constrain(
         Size(
-          contentWidth + (innerPadding?.right ?? 0),
-          contentHeight + (innerPadding?.bottom ?? 0),
+          computedWidth + (innerPadding?.right ?? 0),
+          computedContentHeight + (innerPadding?.bottom ?? 0),
         ),
       );
       return;
@@ -7395,25 +7387,16 @@ class _CodeFieldRenderer extends RenderBox implements MouseTrackerAnnotation {
 
     final computedContentHeight =
         visibleHeight + (innerPadding?.top ?? 0) + _totalVirtualExtraHeight;
-    final contentHeight = max(
-      computedContentHeight,
-      constraints.maxHeight.isFinite
-          ? constraints.maxHeight
-          : MediaQuery.of(context).size.height,
-    );
     final computedWidth = lineWrap
         ? (constraints.maxWidth.isFinite
               ? constraints.maxWidth
               : MediaQuery.of(context).size.width)
         : maxLineWidth + (innerPadding?.left ?? 0) + _gutterWidth;
 
-    final minWidth = lineWrap ? 0.0 : MediaQuery.of(context).size.width;
-    final contentWidth = max(computedWidth, minWidth);
-
     size = constraints.constrain(
       Size(
-        contentWidth + (innerPadding?.right ?? 0),
-        contentHeight + (innerPadding?.bottom ?? 0),
+        computedWidth + (innerPadding?.right ?? 0),
+        computedContentHeight + (innerPadding?.bottom ?? 0),
       ),
     );
   }
