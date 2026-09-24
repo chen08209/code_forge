@@ -9582,27 +9582,19 @@ class _CodeFieldRenderer extends RenderBox implements MouseTrackerAnnotation {
           lineSelEnd,
         );
         final boxes = para.getBoxesForRange(utf16Start, utf16End);
-
-        for (int i = 0; i < boxes.length; i++) {
-          final box = boxes[i];
-          final adjustedLeft = box.left + colorBoxOffsetStart;
-          final adjustedRight = box.right + colorBoxOffsetEnd;
-
-          final screenX = offset.dx + textX + adjustedLeft;
-          final screenY =
-              offset.dy +
-              (innerPadding?.top ?? 0) +
-              lineY +
-              visualYOffset +
-              box.top -
-              vscrollController.offset;
-
+        final lineTop =
+            offset.dy +
+            (innerPadding?.top ?? 0) +
+            lineY +
+            visualYOffset -
+            vscrollController.offset;
+        for (final row in _selectionRows(para, boxes)) {
           canvas.drawRect(
-            Rect.fromLTWH(
-              screenX,
-              screenY,
-              adjustedRight - adjustedLeft,
-              _lineHeight,
+            Rect.fromLTRB(
+              offset.dx + textX + row.left + colorBoxOffsetStart,
+              lineTop + row.top,
+              offset.dx + textX + row.right + colorBoxOffsetEnd,
+              lineTop + row.bottom,
             ),
             selectionPaint,
           );
@@ -9633,6 +9625,36 @@ class _CodeFieldRenderer extends RenderBox implements MouseTrackerAnnotation {
       endLine,
       hasActiveFolds,
     );
+  }
+
+  // One rect per visual row, spanning the row's full height: a style run or
+  // fallback glyph gets its own box with its own font's extent, and stacked
+  // translucent boxes would darken where they overlap.
+  List<Rect> _selectionRows(ui.Paragraph para, List<ui.TextBox> boxes) {
+    if (boxes.isEmpty) return const [];
+    final rows = lineWrap
+        ? [
+            for (final metrics in para.computeLineMetrics())
+              (
+                top: metrics.baseline - metrics.ascent,
+                bottom: metrics.baseline + metrics.descent,
+              ),
+          ]
+        : [(top: 0.0, bottom: _lineHeight)];
+    final spans = <int, Rect>{};
+    for (final box in boxes) {
+      final center = (box.top + box.bottom) / 2;
+      var row = rows.indexWhere((row) => center < row.bottom);
+      if (row < 0) row = rows.length - 1;
+      final rect = Rect.fromLTRB(
+        box.left,
+        rows[row].top,
+        box.right,
+        rows[row].bottom,
+      );
+      spans.update(row, rect.expandToInclude, ifAbsent: () => rect);
+    }
+    return spans.values.toList();
   }
 
   void _drawDocumentHighlights(
