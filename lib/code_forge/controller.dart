@@ -2059,7 +2059,7 @@ class CodeForgeController implements DeltaTextInputClient {
   void copy() {
     final sel = selection;
     if (sel.start == sel.end) return;
-    final selectedText = text.substring(sel.start, sel.end);
+    final selectedText = _scalarSlice(text, sel.start, sel.end);
     Clipboard.setData(ClipboardData(text: selectedText));
   }
 
@@ -2070,7 +2070,7 @@ class CodeForgeController implements DeltaTextInputClient {
     if (readOnly) return;
     final sel = selection;
     if (sel.start == sel.end) return;
-    final selectedText = text.substring(sel.start, sel.end);
+    final selectedText = _scalarSlice(text, sel.start, sel.end);
     Clipboard.setData(ClipboardData(text: selectedText));
     replaceRange(sel.start, sel.end, '');
   }
@@ -2098,9 +2098,8 @@ class CodeForgeController implements DeltaTextInputClient {
   String get text {
     if (_cachedText == null || _cachedTextVersion != _currentVersion) {
       if (_bufferLineIndex != null && _bufferDirty) {
-        final ropeText = _rope.getText();
-        final before = ropeText.substring(0, _bufferLineRopeStart);
-        final after = ropeText.substring(
+        final before = _rope.substring(0, _bufferLineRopeStart);
+        final after = _rope.substring(
           _bufferLineRopeStart + _bufferLineOriginalLength,
         );
         _cachedText = before + _bufferLineText! + after;
@@ -2116,7 +2115,7 @@ class CodeForgeController implements DeltaTextInputClient {
   int get length {
     if (_bufferLineIndex != null && _bufferDirty) {
       return _rope.length +
-          (_bufferLineText!.length - _bufferLineOriginalLength);
+          (_bufferLineText!.runes.length - _bufferLineOriginalLength);
     }
     return _rope.length;
   }
@@ -2451,10 +2450,12 @@ class CodeForgeController implements DeltaTextInputClient {
     final selection = this.selection;
 
     if (selection.start != selection.end) {
-      final selectedText = text.substring(selection.start, selection.end);
+      final selectedText = _scalarSlice(text, selection.start, selection.end);
       replaceRange(selection.end, selection.end, selectedText);
       setSelectionSilently(
-        TextSelection.collapsed(offset: selection.end + selectedText.length),
+        TextSelection.collapsed(
+          offset: selection.end + selectedText.runes.length,
+        ),
       );
     } else {
       final caret = selection.extentOffset;
@@ -5650,6 +5651,13 @@ class CodeForgeController implements DeltaTextInputClient {
       scalar++;
     }
     return scalar;
+  }
+
+  static String _scalarSlice(String text, int start, int end) {
+    return text.substring(
+      scalarToUtf16Offset(text, start),
+      scalarToUtf16Offset(text, end),
+    );
   }
 
   static int scalarToStringIndex(String text, int scalarOffset) {
