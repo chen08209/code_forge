@@ -7497,11 +7497,16 @@ class _CodeFieldRenderer extends RenderBox implements MouseTrackerAnnotation {
   }
 
   @override
+  // Lines scrolled into the top padding stay visible, so a toolbar floating
+  // over the editor shows the text passing beneath it.
+  double get _paintViewTop =>
+      max(0.0, vscrollController.offset - (innerPadding?.top ?? 0));
+
   void paint(PaintingContext context, Offset offset) {
     _checkDocumentVersionAndClearCache();
 
     final canvas = context.canvas;
-    final viewTop = vscrollController.offset;
+    final viewTop = _paintViewTop;
     final viewBottom = viewTop + vscrollController.position.viewportDimension;
     final lineCount = controller.lineCount;
     final bufferActive = controller.isBufferActive;
@@ -8702,7 +8707,7 @@ class _CodeFieldRenderer extends RenderBox implements MouseTrackerAnnotation {
   ) {
     if (!enableGuideLines) return;
 
-    final viewTop = vscrollController.offset;
+    final viewTop = _paintViewTop;
     final viewBottom = viewTop + vscrollController.position.viewportDimension;
     final tabSize = controller.tabSize;
     final cursorOffset = controller.selection.extentOffset;
@@ -10729,7 +10734,7 @@ class _CodeFieldRenderer extends RenderBox implements MouseTrackerAnnotation {
     final blocks = controller.virtualRemovedBlocks;
     if (blocks.isEmpty) return;
 
-    final viewTop = vscrollController.offset;
+    final viewTop = _paintViewTop;
     final viewBottom = viewTop + vscrollController.position.viewportDimension;
 
     for (int blockIdx = 0; blockIdx < blocks.length; blockIdx++) {
