@@ -2383,15 +2383,13 @@ class CodeForgeController implements DeltaTextInputClient {
     final text = this.text;
     final selStart = scalarToUtf16Offset(text, selection.start);
     final selEnd = scalarToUtf16Offset(text, selection.end);
-    final lineStart = selStart > 0
-        ? text.lastIndexOf('\n', selStart - 1) + 1
-        : 0;
+    final lineStart = _lineStartBefore(text, selStart);
     int lineEnd = text.indexOf('\n', selEnd);
     if (lineEnd == -1) lineEnd = text.length;
     if (lineStart == 0) return;
 
     final prevLineEnd = lineStart - 1;
-    final prevLineStart = text.lastIndexOf('\n', prevLineEnd - 1) + 1;
+    final prevLineStart = _lineStartBefore(text, prevLineEnd);
     final prevLine = text.substring(prevLineStart, prevLineEnd);
     final currentLines = text.substring(lineStart, lineEnd);
 
@@ -2420,7 +2418,7 @@ class CodeForgeController implements DeltaTextInputClient {
     final text = this.text;
     final selStart = scalarToUtf16Offset(text, selection.start);
     final selEnd = scalarToUtf16Offset(text, selection.end);
-    final lineStart = text.lastIndexOf('\n', selStart - 1) + 1;
+    final lineStart = _lineStartBefore(text, selStart);
     int lineEnd = text.indexOf('\n', selEnd);
     if (lineEnd == -1) lineEnd = text.length;
     final nextLineStart = lineEnd + 1;
@@ -4306,7 +4304,7 @@ class CodeForgeController implements DeltaTextInputClient {
       final selStart = scalarToUtf16Offset(text, selection.start);
       final selEnd = scalarToUtf16Offset(text, selection.end);
 
-      final lineStart = text.lastIndexOf('\n', selStart - 1) + 1;
+      final lineStart = _lineStartBefore(text, selStart);
       int lineEnd = text.indexOf('\n', selEnd);
       if (lineEnd == -1) lineEnd = text.length;
 
@@ -4350,7 +4348,7 @@ class CodeForgeController implements DeltaTextInputClient {
       final selStart = scalarToUtf16Offset(text, selection.start);
       final selEnd = scalarToUtf16Offset(text, selection.end);
 
-      final lineStart = text.lastIndexOf('\n', selStart - 1) + 1;
+      final lineStart = _lineStartBefore(text, selStart);
       int lineEnd = text.indexOf('\n', selEnd);
       if (lineEnd == -1) lineEnd = text.length;
 
@@ -4391,8 +4389,7 @@ class CodeForgeController implements DeltaTextInputClient {
     } else {
       final text = this.text;
       final caret = scalarToUtf16Offset(text, selection.start);
-      final prevNewline = text.lastIndexOf('\n', caret - 1);
-      final lineStart = prevNewline == -1 ? 0 : prevNewline + 1;
+      final lineStart = _lineStartBefore(text, caret);
       final nextNewline = text.indexOf('\n', caret);
       final lineEnd = nextNewline == -1 ? text.length : nextNewline;
       final line = text.substring(lineStart, lineEnd);
@@ -5761,6 +5758,10 @@ class CodeForgeController implements DeltaTextInputClient {
       for (final range in ranges)
         TextRange(start: advance(range.start), end: advance(range.end)),
     ];
+  }
+
+  static int _lineStartBefore(String text, int index) {
+    return index > 0 ? text.lastIndexOf('\n', index - 1) + 1 : 0;
   }
 
   static bool _isLowSurrogateAt(String text, int index) {
