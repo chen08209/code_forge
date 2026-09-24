@@ -1603,12 +1603,13 @@ class _CodeForgeState extends State<CodeForge>
       return;
     }
 
-    int caret = selection.extentOffset;
-    if (caret <= 0) return;
+    final scalarCaret = selection.extentOffset;
+    if (scalarCaret <= 0) return;
+    final caret = CodeForgeController.scalarToUtf16Offset(text, scalarCaret);
 
     final prevChar = text[caret - 1];
     if (prevChar == '\n') {
-      _controller.replaceRange(caret - 1, caret, '');
+      _controller.replaceRange(scalarCaret - 1, scalarCaret, '');
       return;
     }
 
@@ -1617,14 +1618,11 @@ class _CodeForgeState extends State<CodeForge>
     final lineText = before.substring(lineStart);
 
     final match = RegExp(r'(\w+|[^\w\s]+)\s*$').firstMatch(lineText);
-    int deleteFrom = caret;
-    if (match != null) {
-      deleteFrom = lineStart + match.start;
-    } else {
-      deleteFrom = caret - 1;
-    }
+    final deleteFrom = match != null
+        ? CodeForgeController.utf16ToScalarOffset(text, lineStart + match.start)
+        : scalarCaret - 1;
 
-    _controller.replaceRange(deleteFrom, caret, '');
+    _controller.replaceRange(deleteFrom, scalarCaret, '');
   }
 
   void _deleteWordForward() {
@@ -1637,32 +1635,33 @@ class _CodeForgeState extends State<CodeForge>
       return;
     }
 
-    int caret = selection.extentOffset;
+    final scalarCaret = selection.extentOffset;
+    final caret = CodeForgeController.scalarToUtf16Offset(text, scalarCaret);
     if (caret >= text.length) return;
 
     final after = text.substring(caret);
     final match = RegExp(r'^(\s*\w+|\s*[^\w\s]+)').firstMatch(after);
-    int deleteTo = caret;
-    if (match != null) {
-      deleteTo = caret + match.end;
-    } else {
-      deleteTo = caret + 1;
-    }
+    final deleteTo = match != null
+        ? CodeForgeController.utf16ToScalarOffset(text, caret + match.end)
+        : scalarCaret + 1;
 
-    _controller.replaceRange(caret, deleteTo, '');
+    _controller.replaceRange(scalarCaret, deleteTo, '');
   }
 
   void _moveWordLeft(bool withShift) {
     final selection = _controller.selection;
     final text = _controller.text;
-    int caret = selection.extentOffset;
+    final caret = CodeForgeController.scalarToUtf16Offset(
+      text,
+      selection.extentOffset,
+    );
 
     if (caret <= 0) return;
 
     final prevNewline = text.lastIndexOf('\n', caret - 1);
     final lineStart = prevNewline == -1 ? 0 : prevNewline + 1;
     if (caret == lineStart && lineStart > 0) {
-      final newOffset = lineStart - 1;
+      final newOffset = selection.extentOffset - 1;
       _controller.setSelectionSilently(
         withShift
             ? TextSelection(
@@ -1679,10 +1678,14 @@ class _CodeForgeState extends State<CodeForge>
         .allMatches(lineText)
         .toList();
 
-    int newOffset = lineStart;
+    int utf16Offset = lineStart;
     for (final match in wordMatches) {
-      newOffset = lineStart + match.start;
+      utf16Offset = lineStart + match.start;
     }
+    final newOffset = CodeForgeController.utf16ToScalarOffset(
+      text,
+      utf16Offset,
+    );
 
     _controller.setSelectionSilently(
       withShift
@@ -1697,12 +1700,15 @@ class _CodeForgeState extends State<CodeForge>
   void _moveWordRight(bool withShift) {
     final selection = _controller.selection;
     final text = _controller.text;
-    int caret = selection.extentOffset;
+    final caret = CodeForgeController.scalarToUtf16Offset(
+      text,
+      selection.extentOffset,
+    );
 
     if (caret >= text.length) return;
 
     if (caret < text.length && text[caret] == '\n') {
-      final newOffset = caret + 1;
+      final newOffset = selection.extentOffset + 1;
       _controller.setSelectionSilently(
         withShift
             ? TextSelection(
@@ -1717,14 +1723,18 @@ class _CodeForgeState extends State<CodeForge>
     final regex = RegExp('$_wordCharPattern+|[^$_wordCharPattern\\s]+|\\s+');
     final matches = regex.allMatches(text, caret);
 
-    int newOffset = caret;
+    int utf16Offset = caret;
     for (final match in matches) {
       if (match.start > caret) {
-        newOffset = match.start;
+        utf16Offset = match.start;
         break;
       }
     }
-    if (newOffset == caret) newOffset = text.length;
+    if (utf16Offset == caret) utf16Offset = text.length;
+    final newOffset = CodeForgeController.utf16ToScalarOffset(
+      text,
+      utf16Offset,
+    );
 
     _controller.setSelectionSilently(
       withShift
@@ -11823,7 +11833,8 @@ class _CodeFieldRenderer extends RenderBox implements MouseTrackerAnnotation {
     }
 
     final text = controller.text;
-    int start = offset, end = offset;
+    final utf16Offset = CodeForgeController.scalarToUtf16Offset(text, offset);
+    int start = utf16Offset, end = utf16Offset;
 
     while (start > 0 && !_isWordBoundary(text[start - 1])) {
       start--;
@@ -11832,7 +11843,10 @@ class _CodeFieldRenderer extends RenderBox implements MouseTrackerAnnotation {
       end++;
     }
 
-    controller.selection = TextSelection(baseOffset: start, extentOffset: end);
+    controller.selection = TextSelection(
+      baseOffset: CodeForgeController.utf16ToScalarOffset(text, start),
+      extentOffset: CodeForgeController.utf16ToScalarOffset(text, end),
+    );
     markNeedsPaint();
   }
 
@@ -11841,9 +11855,10 @@ class _CodeFieldRenderer extends RenderBox implements MouseTrackerAnnotation {
   }
 
   bool _isOffsetOverWord(int offset) {
+    if (offset < 0 || offset >= controller.length) return false;
     final text = controller.text;
-    if (offset < 0 || offset >= text.length) return false;
-    return RegExp(_wordCharPattern).hasMatch(text[offset]);
+    final index = CodeForgeController.scalarToUtf16Offset(text, offset);
+    return RegExp(_wordCharPattern).hasMatch(text[index]);
   }
 
   Map<String, int> _offsetToLineChar(int offset) {

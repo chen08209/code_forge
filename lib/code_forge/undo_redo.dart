@@ -76,7 +76,7 @@ class InsertOperation extends EditOperation {
     final timeDiff = other.timestamp.difference(timestamp).inMilliseconds.abs();
     if (timeDiff > 500) return false;
 
-    if (other.offset == offset + text.length) {
+    if (other.offset == offset + text.runes.length) {
       if (text.contains('\n') || other.text.contains('\n')) return false;
       final thisEndsWithSpace = text.endsWith(' ') || text.endsWith('\t');
       final otherStartsWithSpace =
@@ -149,7 +149,7 @@ class DeleteOperation extends EditOperation {
 
     if (text.contains('\n') || other.text.contains('\n')) return false;
 
-    if (other.offset == offset - other.text.length) {
+    if (other.offset == offset - other.text.runes.length) {
       return true;
     }
 
@@ -163,7 +163,7 @@ class DeleteOperation extends EditOperation {
   EditOperation mergeWith(EditOperation other) {
     if (other is! DeleteOperation) return this;
 
-    if (other.offset == offset - other.text.length) {
+    if (other.offset == offset - other.text.runes.length) {
       return DeleteOperation(
         offset: other.offset,
         text: other.text + text,

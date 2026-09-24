@@ -10,7 +10,7 @@ import 'styling.dart';
 class FindController extends ChangeNotifier {
   final CodeForgeController _codeController;
 
-  List<Match> _matches = [];
+  List<TextRange> _matches = [];
   int _currentMatchIndex = -1;
   bool _isRegex = false;
   bool _caseSensitive = false;
@@ -182,7 +182,12 @@ class FindController extends ChangeNotifier {
         multiLine: true,
       );
 
-      _matches = regExp.allMatches(text).toList();
+      _matches = CodeForgeController.utf16RangesToScalar(
+        text,
+        regExp
+            .allMatches(text)
+            .map((m) => TextRange(start: m.start, end: m.end)),
+      );
     } catch (e) {
       _matches = [];
       _currentMatchIndex = -1;
@@ -273,7 +278,7 @@ class FindController extends ChangeNotifier {
       final regExp = RegExp(pattern, caseSensitive: _caseSensitive);
       final newText = text.replaceAll(regExp, replaceInputController.text);
 
-      _codeController.replaceRange(0, text.length, newText);
+      _codeController.replaceRange(0, _codeController.length, newText);
     } catch (e) {
       debugPrint('FindController: Replace All failed. Error: $e');
     }
