@@ -4498,6 +4498,7 @@ class _CodeFieldRenderer extends RenderBox implements MouseTrackerAnnotation {
   bool _foldRangesNeedsClear = false;
   Set<int> _foldedLineIndices = {};
   List<int> _sortedFoldedLines = [];
+  List<({int start, int end})> _foldedLineRuns = const [];
   bool _hasActiveFoldsCache = false;
   bool _foldedLineCacheDirty = true;
   bool _asyncFoldComputationPending = false;
@@ -4616,6 +4617,17 @@ class _CodeFieldRenderer extends RenderBox implements MouseTrackerAnnotation {
     sortedLines.sort();
     _sortedFoldedLines = sortedLines;
     _foldedLineIndices = sortedLines.toSet();
+    final runs = <({int start, int end})>[];
+    for (final line in sortedLines) {
+      if (runs.isNotEmpty && line <= runs.last.end) {
+        if (line == runs.last.end) {
+          runs.last = (start: runs.last.start, end: line + 1);
+        }
+      } else {
+        runs.add((start: line, end: line + 1));
+      }
+    }
+    _foldedLineRuns = runs;
     _foldedLineCacheDirty = false;
   }
 
@@ -4836,7 +4848,7 @@ class _CodeFieldRenderer extends RenderBox implements MouseTrackerAnnotation {
     _wrappedHeightIndexLineCount = lineCount;
     _wrappedHeightEstimate = nextEstimate;
     _wrappedHeightDeltas = List<double>.filled(lineCount + 1, 0.0);
-    _clearLineYCaches();
+    _caretInfoCache.clear();
     for (final entry in _lineHeightCache.entries) {
       if (entry.key >= 0 && entry.key < lineCount) {
         _addWrappedHeightDelta(entry.key, entry.value - nextEstimate);
@@ -4844,16 +4856,10 @@ class _CodeFieldRenderer extends RenderBox implements MouseTrackerAnnotation {
     }
   }
 
-  // Line and caret offsets are read from this index, so a cached one goes
-  // stale whenever a line's measured height replaces its estimate.
-  void _clearLineYCaches() {
-    _lineOffsetCache.clear();
-    _caretInfoCache.clear();
-  }
-
   void _addWrappedHeightDelta(int lineIndex, double delta) {
     if (delta == 0) return;
-    _clearLineYCaches();
+    // A cached caret offset was read from the index before this change.
+    _caretInfoCache.clear();
     for (
       var index = lineIndex + 1;
       index < _wrappedHeightDeltas.length;
@@ -4876,6 +4882,18 @@ class _CodeFieldRenderer extends RenderBox implements MouseTrackerAnnotation {
     final clamped = lineIndex.clamp(0, controller.lineCount);
     return clamped * _wrappedHeightEstimate +
         _wrappedHeightDeltaBefore(clamped);
+  }
+
+  // Folded lines count toward the index as well; subtracting them with the
+  // same index keeps this equal to summing the unfolded heights one by one.
+  double _foldedWrappedLineYOffset(int lineIndex) {
+    var y = _wrappedLineYOffset(lineIndex);
+    for (final run in _foldedLineRuns) {
+      if (run.start >= lineIndex) break;
+      final end = run.end < lineIndex ? run.end : lineIndex;
+      y -= _wrappedLineYOffset(end) - _wrappedLineYOffset(run.start);
+    }
+    return y;
   }
 
   double _wrappedContentHeight() => _wrappedLineYOffset(controller.lineCount);
@@ -7513,26 +7531,23 @@ class _CodeFieldRenderer extends RenderBox implements MouseTrackerAnnotation {
   }
 
   double _getLineYOffset(int targetLine, bool hasActiveFolds) {
+    if (lineWrap) {
+      if (!hasActiveFolds) return _wrappedLineYOffset(targetLine);
+      _ensureFoldedLineCacheValid();
+      return _foldedWrappedLineYOffset(targetLine);
+    }
     final cacheKey = '${targetLine}_$hasActiveFolds';
     if (_lineOffsetCache.containsKey(cacheKey)) {
       return _lineOffsetCache[cacheKey]!;
     }
 
     double y;
-    if (!lineWrap && !hasActiveFolds) {
+    if (!hasActiveFolds) {
       y = targetLine * _lineHeight;
-    } else if (!lineWrap && hasActiveFolds) {
+    } else {
       _ensureFoldedLineCacheValid();
       final foldedBefore = _countFoldedLinesBefore(targetLine);
       y = (targetLine - foldedBefore) * _lineHeight;
-    } else if (!hasActiveFolds) {
-      y = _wrappedLineYOffset(targetLine);
-    } else {
-      y = 0;
-      for (int i = 0; i < targetLine; i++) {
-        if (hasActiveFolds && _isLineFolded(i)) continue;
-        y += _getWrappedLineHeight(i);
-      }
     }
     _lineOffsetCache[cacheKey] = y;
     return y;
@@ -7680,14 +7695,7 @@ class _CodeFieldRenderer extends RenderBox implements MouseTrackerAnnotation {
                 (line, _) =>
                     line >= firstVisibleLine && line <= lastVisibleLine,
               );
-              if (lineWrap) {
-                _lineHeightCache.removeWhere(
-                  (line, _) =>
-                      line >= firstVisibleLine && line <= lastVisibleLine,
-                );
-                _invalidateWrappedHeightIndex();
-                if (attached) markNeedsLayout();
-              }
+              if (lineWrap && attached) markNeedsLayout();
               if (attached) markNeedsPaint();
             }),
       );
