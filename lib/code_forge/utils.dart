@@ -684,6 +684,58 @@ class CodeForgeScrollbarDetails {
   });
 }
 
+/// Where a completion suggestion comes from.
+enum CodeForgeSuggestionKind {
+  /// A word collected from the document.
+  word,
+
+  /// One of [CodeForge.customCodeSnippets].
+  snippet,
+
+  /// An item returned by the language server.
+  lsp,
+}
+
+/// One entry of the completion popup, as [CodeForge.suggestionPopupBuilder]
+/// sees it.
+class CodeForgeSuggestion {
+  final String label;
+  final CodeForgeSuggestionKind kind;
+
+  /// The item type the language server reported; null unless [kind] is
+  /// [CodeForgeSuggestionKind.lsp].
+  final CompletionItemType? type;
+
+  /// Where an LSP item is imported from, when the server says.
+  final String? detail;
+
+  const CodeForgeSuggestion({
+    required this.label,
+    required this.kind,
+    this.type,
+    this.detail,
+  });
+}
+
+/// What [CodeForge.suggestionPopupBuilder] needs to build the completion
+/// popup.
+class CodeForgeSuggestionDetails {
+  final List<CodeForgeSuggestion> suggestions;
+
+  /// The entry Enter or Tab accepts, or null when none is highlighted.
+  final int? selectedIndex;
+
+  /// Inserts the entry at the index, as tapping it in the built-in popup
+  /// does.
+  final ValueChanged<int> onAccept;
+
+  const CodeForgeSuggestionDetails({
+    required this.suggestions,
+    required this.selectedIndex,
+    required this.onAccept,
+  });
+}
+
 /// Create a custom entry for the context menu (The menu that appears on right click).
 /// Pass it to the [CodeForge] class to add the custom entry to the context menu.
 /// eg:

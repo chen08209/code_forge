@@ -288,6 +288,18 @@ class CodeForge extends StatefulWidget {
   )?
   scrollbarBuilder;
 
+  /// Builds the completion popup instead of the built-in list;
+  /// [suggestionStyle] no longer applies to it. The editor still places the
+  /// popup below or above the caret line, and keeps the arrow keys, Enter,
+  /// Tab and Escape. The popup is laid out no wider than the built-in one and
+  /// no taller than the space on the side it opens on, so it should size to
+  /// its content and scroll within those constraints.
+  final Widget Function(
+    BuildContext context,
+    CodeForgeSuggestionDetails details,
+  )?
+  suggestionPopupBuilder;
+
   final int _tabSize;
 
   /// Creates a [CodeForge] code editor widget.
@@ -335,6 +347,7 @@ class CodeForge extends StatefulWidget {
     this.findController,
     this.onContextMenu,
     this.scrollbarBuilder,
+    this.suggestionPopupBuilder,
   }) : _tabSize = tabSize ?? (useSpaceAsTab ? 2 : 1);
 
   @override
@@ -3224,379 +3237,240 @@ class _CodeForgeState extends State<CodeForge>
                             builder: (context, selected, child) {
                               return Stack(
                                 children: [
-                                  Positioned(
-                                    width: suggestionWidth,
-                                    top: adjustedTop,
-                                    bottom: adjustedBottom,
-                                    left: adjustedLeft,
-                                    child: ConstrainedBox(
-                                      constraints: BoxConstraints(
-                                        maxHeight: 400,
-                                        maxWidth: 400,
-                                        minWidth: 70,
-                                      ),
-                                      child: Card(
-                                        shape: _suggestionStyle.shape,
-                                        elevation: _suggestionStyle.elevation,
-                                        color: _suggestionStyle.backgroundColor,
-                                        margin: EdgeInsets.zero,
-                                        child: RawScrollbar(
-                                          thumbVisibility: true,
-                                          thumbColor: _editorTheme['root']!
-                                              .color!
-                                              .withAlpha(80),
-                                          interactive: true,
-                                          controller: _suggScrollController,
-                                          child: ListView.builder(
-                                            itemExtent:
-                                                _suggestionStyle.itemHeight ??
-                                                24.0,
+                                  if (widget.suggestionPopupBuilder != null)
+                                    _buildSuggestionPopup(
+                                      context,
+                                      sugg,
+                                      left: adjustedLeft,
+                                      width: suggestionWidth,
+                                      below: offset.dy + fontSize + 10,
+                                      above: offset.dy - 10,
+                                    )
+                                  else
+                                    Positioned(
+                                      width: suggestionWidth,
+                                      top: adjustedTop,
+                                      bottom: adjustedBottom,
+                                      left: adjustedLeft,
+                                      child: ConstrainedBox(
+                                        constraints: BoxConstraints(
+                                          maxHeight: 400,
+                                          maxWidth: 400,
+                                          minWidth: 70,
+                                        ),
+                                        child: Card(
+                                          shape: _suggestionStyle.shape,
+                                          elevation: _suggestionStyle.elevation,
+                                          color:
+                                              _suggestionStyle.backgroundColor,
+                                          margin: EdgeInsets.zero,
+                                          child: RawScrollbar(
+                                            thumbVisibility: true,
+                                            thumbColor: _editorTheme['root']!
+                                                .color!
+                                                .withAlpha(80),
+                                            interactive: true,
                                             controller: _suggScrollController,
-                                            padding: EdgeInsets.zero,
-                                            shrinkWrap: true,
-                                            itemCount: sugg.length,
-                                            itemBuilder: (_, indx) {
-                                              final item = sugg[indx];
-                                              if ((item is LspCompletion) &&
-                                                  (indx == _sugSelIndex ||
-                                                      (_isMobile &&
-                                                          _isMobileSuggActive))) {
-                                                final key =
-                                                    _getSuggestionCacheKey(
-                                                      item,
-                                                    );
-                                                if (!_suggestionDetailsCache
-                                                        .containsKey(key) &&
-                                                    _controller.lspConfig !=
-                                                        null) {
-                                                  (() async {
-                                                    try {
-                                                      final data = await _controller
-                                                          .lspConfig!
-                                                          .resolveCompletionItem(
-                                                            item.completionItem,
-                                                          );
-                                                      final mdText =
-                                                          "${data['detail'] ?? ''}\n${(() {
-                                                            final doc = data['documentation'];
-                                                            if (doc == null) {
-                                                              return '';
-                                                            }
-
-                                                            if (doc is Map<String, dynamic> && doc.containsKey('value')) {
-                                                              return doc['value'];
-                                                            }
-
-                                                            return doc;
-                                                          })()}";
-                                                      if (!mounted) return;
-                                                      setState(() {
-                                                        final edits =
-                                                            data['additionalTextEdits'];
-                                                        if (edits is List) {
-                                                          try {
-                                                            _extraText = edits
-                                                                .map(
-                                                                  (e) =>
-                                                                      Map<
-                                                                        String,
-                                                                        dynamic
-                                                                      >.from(
-                                                                        e as Map,
-                                                                      ),
-                                                                )
-                                                                .toList();
-                                                          } catch (_) {
-                                                            _extraText = edits
-                                                                .cast<
-                                                                  Map<
-                                                                    String,
-                                                                    dynamic
-                                                                  >
-                                                                >();
-                                                          }
-                                                        } else {
-                                                          _extraText = [];
-                                                        }
-                                                        _suggestionDetailsCache[key] =
-                                                            mdText;
-                                                        _selectedSuggestionMd =
-                                                            mdText;
-                                                      });
-                                                    } catch (e) {
-                                                      debugPrint(
-                                                        "Completion Resolve failed: ${e.toString()}",
-                                                      );
-                                                    }
-                                                  })();
-                                                } else if (_suggestionDetailsCache
-                                                    .containsKey(key)) {
-                                                  final cached =
-                                                      _suggestionDetailsCache[key];
-                                                  if (_selectedSuggestionMd !=
-                                                      cached) {
-                                                    WidgetsBinding.instance
-                                                        .addPostFrameCallback((
-                                                          _,
-                                                        ) {
-                                                          if (!mounted) return;
-                                                          setState(() {
-                                                            _selectedSuggestionMd =
-                                                                cached;
-                                                          });
-                                                        });
-                                                  }
+                                            child: ListView.builder(
+                                              itemExtent:
+                                                  _suggestionStyle.itemHeight ??
+                                                  24.0,
+                                              controller: _suggScrollController,
+                                              padding: EdgeInsets.zero,
+                                              shrinkWrap: true,
+                                              itemCount: sugg.length,
+                                              itemBuilder: (_, indx) {
+                                                final item = sugg[indx];
+                                                if (indx == _sugSelIndex ||
+                                                    (_isMobile &&
+                                                        _isMobileSuggActive)) {
+                                                  _syncSuggestionDetails(item);
                                                 }
-                                              } else if ((item
-                                                          is! LspCompletion &&
-                                                      widget
-                                                          .enableLocalSuggestions) &&
-                                                  (indx == _sugSelIndex ||
-                                                      (_isMobile &&
-                                                          _isMobileSuggActive))) {
-                                                if (_selectedSuggestionMd !=
-                                                    null) {
-                                                  WidgetsBinding.instance
-                                                      .addPostFrameCallback((
-                                                        _,
-                                                      ) {
-                                                        if (!mounted) return;
-                                                        setState(() {
-                                                          _selectedSuggestionMd =
-                                                              null;
-                                                        });
-                                                      });
-                                                }
-                                              }
 
-                                              return Container(
-                                                height:
-                                                    _suggestionStyle.itemHeight,
-                                                padding: EdgeInsets.symmetric(
-                                                  horizontal: 8,
-                                                  vertical: 2,
-                                                ),
-                                                decoration: BoxDecoration(
-                                                  color:
-                                                      ((!_isMobile &&
-                                                              (indx ==
-                                                                  _sugSelIndex)) ||
-                                                          _controller
-                                                                  .currentlySelectedSuggestion ==
-                                                              indx)
-                                                      ? (_suggestionStyle
-                                                                .selectedBackgroundColor ??
-                                                            _suggestionStyle
-                                                                .focusColor)
-                                                      : Colors.transparent,
-                                                  borderRadius:
-                                                      BorderRadius.circular(3),
-                                                ),
-                                                child: InkWell(
-                                                  canRequestFocus: false,
-                                                  hoverColor: _suggestionStyle
-                                                      .hoverColor,
-                                                  focusColor: _suggestionStyle
-                                                      .focusColor,
-                                                  splashColor: _suggestionStyle
-                                                      .splashColor,
-                                                  borderRadius:
-                                                      BorderRadius.circular(3),
-                                                  onTap: () {
-                                                    if (mounted) {
-                                                      setState(() {
-                                                        if (_isMobileSuggActive) {
-                                                          _controller
-                                                                  .currentlySelectedSuggestion =
-                                                              indx;
-                                                        } else {
-                                                          _sugSelIndex = indx;
-                                                        }
-                                                        if (item
-                                                            is _SnippetSuggestion) {
-                                                          _insertSnippetWithCursors(
-                                                            item,
-                                                          );
-                                                          _isInjectingSnippets =
-                                                              true;
-                                                          _suggestionNotifier
-                                                                  .value =
-                                                              null;
-                                                          _isInjectingSnippets =
-                                                              false;
-                                                        } else {
-                                                          final text =
-                                                              item
-                                                                  is LspCompletion
-                                                              ? item.label
-                                                              : item as String;
-                                                          _controller
-                                                              .insertAtCurrentCursor(
-                                                                text,
-                                                                replaceTypedChar:
-                                                                    true,
-                                                              );
-                                                          if (_extraText
-                                                              .isNotEmpty) {
+                                                return Container(
+                                                  height: _suggestionStyle
+                                                      .itemHeight,
+                                                  padding: EdgeInsets.symmetric(
+                                                    horizontal: 8,
+                                                    vertical: 2,
+                                                  ),
+                                                  decoration: BoxDecoration(
+                                                    color:
+                                                        ((!_isMobile &&
+                                                                (indx ==
+                                                                    _sugSelIndex)) ||
                                                             _controller
-                                                                .applyWorkspaceEdit(
-                                                                  _extraText,
-                                                                );
-                                                          }
-                                                          _suggestionNotifier
-                                                                  .value =
-                                                              null;
-                                                        }
-                                                        _isSignatureInvoked =
-                                                            true;
-                                                        _controller
-                                                            .callSignatureHelp();
-                                                      });
-                                                    }
-                                                  },
-                                                  child: Row(
-                                                    crossAxisAlignment:
-                                                        CrossAxisAlignment
-                                                            .center,
-                                                    children: [
-                                                      if (item
-                                                          is LspCompletion) ...[
-                                                        item.icon,
-                                                        const SizedBox(
-                                                          width: 8,
+                                                                    .currentlySelectedSuggestion ==
+                                                                indx)
+                                                        ? (_suggestionStyle
+                                                                  .selectedBackgroundColor ??
+                                                              _suggestionStyle
+                                                                  .focusColor)
+                                                        : Colors.transparent,
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          3,
                                                         ),
-                                                        Expanded(
-                                                          flex: 3,
-                                                          child: Text(
-                                                            item.label,
-                                                            style:
-                                                                _suggestionStyle.labelTextStyle?.copyWith(
-                                                                  color:
-                                                                      ((!_isMobile &&
-                                                                              (indx ==
-                                                                                  _sugSelIndex)) ||
-                                                                          _controller.currentlySelectedSuggestion ==
-                                                                              indx)
-                                                                      ? Colors
-                                                                            .white
-                                                                      : _suggestionStyle
-                                                                            .labelTextStyle
-                                                                            ?.color,
-                                                                ) ??
-                                                                _suggestionStyle.textStyle.copyWith(
-                                                                  color:
-                                                                      ((!_isMobile &&
-                                                                              (indx ==
-                                                                                  _sugSelIndex)) ||
-                                                                          _controller.currentlySelectedSuggestion ==
-                                                                              indx)
-                                                                      ? Colors
-                                                                            .white
-                                                                      : _suggestionStyle
-                                                                            .textStyle
-                                                                            .color,
-                                                                ),
-                                                            overflow:
-                                                                TextOverflow
-                                                                    .ellipsis,
-                                                          ),
+                                                  ),
+                                                  child: InkWell(
+                                                    canRequestFocus: false,
+                                                    hoverColor: _suggestionStyle
+                                                        .hoverColor,
+                                                    focusColor: _suggestionStyle
+                                                        .focusColor,
+                                                    splashColor:
+                                                        _suggestionStyle
+                                                            .splashColor,
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          3,
                                                         ),
-                                                        if (item.importUri?[0] !=
-                                                            null) ...[
+                                                    onTap: () =>
+                                                        _acceptSuggestionAt(
+                                                          indx,
+                                                          item,
+                                                        ),
+                                                    child: Row(
+                                                      crossAxisAlignment:
+                                                          CrossAxisAlignment
+                                                              .center,
+                                                      children: [
+                                                        if (item
+                                                            is LspCompletion) ...[
+                                                          item.icon,
                                                           const SizedBox(
                                                             width: 8,
                                                           ),
                                                           Expanded(
-                                                            flex: 2,
+                                                            flex: 3,
                                                             child: Text(
-                                                              item.importUri![0],
+                                                              item.label,
                                                               style:
-                                                                  _suggestionStyle
-                                                                      .detailTextStyle ??
-                                                                  _suggestionStyle
-                                                                      .textStyle
-                                                                      .copyWith(
-                                                                        color: _suggestionStyle
-                                                                            .textStyle
-                                                                            .color
-                                                                            ?.withAlpha(
-                                                                              150,
-                                                                            ),
-                                                                      ),
+                                                                  _suggestionStyle.labelTextStyle?.copyWith(
+                                                                    color:
+                                                                        ((!_isMobile &&
+                                                                                (indx ==
+                                                                                    _sugSelIndex)) ||
+                                                                            _controller.currentlySelectedSuggestion ==
+                                                                                indx)
+                                                                        ? Colors
+                                                                              .white
+                                                                        : _suggestionStyle
+                                                                              .labelTextStyle
+                                                                              ?.color,
+                                                                  ) ??
+                                                                  _suggestionStyle.textStyle.copyWith(
+                                                                    color:
+                                                                        ((!_isMobile &&
+                                                                                (indx ==
+                                                                                    _sugSelIndex)) ||
+                                                                            _controller.currentlySelectedSuggestion ==
+                                                                                indx)
+                                                                        ? Colors
+                                                                              .white
+                                                                        : _suggestionStyle
+                                                                              .textStyle
+                                                                              .color,
+                                                                  ),
                                                               overflow:
                                                                   TextOverflow
                                                                       .ellipsis,
-                                                              textAlign:
-                                                                  TextAlign
-                                                                      .right,
+                                                            ),
+                                                          ),
+                                                          if (item.importUri?[0] !=
+                                                              null) ...[
+                                                            const SizedBox(
+                                                              width: 8,
+                                                            ),
+                                                            Expanded(
+                                                              flex: 2,
+                                                              child: Text(
+                                                                item.importUri![0],
+                                                                style:
+                                                                    _suggestionStyle
+                                                                        .detailTextStyle ??
+                                                                    _suggestionStyle.textStyle.copyWith(
+                                                                      color: _suggestionStyle
+                                                                          .textStyle
+                                                                          .color
+                                                                          ?.withAlpha(
+                                                                            150,
+                                                                          ),
+                                                                    ),
+                                                                overflow:
+                                                                    TextOverflow
+                                                                        .ellipsis,
+                                                                textAlign:
+                                                                    TextAlign
+                                                                        .right,
+                                                              ),
+                                                            ),
+                                                          ],
+                                                        ],
+                                                        if (item
+                                                            is _SnippetSuggestion) ...[
+                                                          Icon(
+                                                            completionItemIcons[CompletionItemType
+                                                                    .snippet]!
+                                                                .icon,
+                                                            color:
+                                                                completionItemIcons[CompletionItemType
+                                                                        .snippet]!
+                                                                    .color,
+                                                            size:
+                                                                _suggestionStyle
+                                                                    .iconSize ??
+                                                                16.0,
+                                                          ),
+                                                          const SizedBox(
+                                                            width: 8,
+                                                          ),
+                                                          Expanded(
+                                                            child: Text(
+                                                              item.label,
+                                                              style: (_suggestionStyle.labelTextStyle ?? _suggestionStyle.textStyle).copyWith(
+                                                                color:
+                                                                    ((!_isMobile &&
+                                                                            (indx ==
+                                                                                _sugSelIndex)) ||
+                                                                        _controller.currentlySelectedSuggestion ==
+                                                                            indx)
+                                                                    ? Colors
+                                                                          .white
+                                                                    : (_suggestionStyle.labelTextStyle ??
+                                                                              _suggestionStyle.textStyle)
+                                                                          .color,
+                                                              ),
+                                                              overflow:
+                                                                  TextOverflow
+                                                                      .ellipsis,
                                                             ),
                                                           ),
                                                         ],
-                                                      ],
-                                                      if (item
-                                                          is _SnippetSuggestion) ...[
-                                                        Icon(
-                                                          completionItemIcons[CompletionItemType
-                                                                  .snippet]!
-                                                              .icon,
-                                                          color:
-                                                              completionItemIcons[CompletionItemType
-                                                                      .snippet]!
-                                                                  .color,
-                                                          size:
-                                                              _suggestionStyle
-                                                                  .iconSize ??
-                                                              16.0,
-                                                        ),
-                                                        const SizedBox(
-                                                          width: 8,
-                                                        ),
-                                                        Expanded(
-                                                          child: Text(
-                                                            item.label,
-                                                            style: (_suggestionStyle.labelTextStyle ?? _suggestionStyle.textStyle).copyWith(
-                                                              color:
-                                                                  ((!_isMobile &&
-                                                                          (indx ==
-                                                                              _sugSelIndex)) ||
-                                                                      _controller
-                                                                              .currentlySelectedSuggestion ==
-                                                                          indx)
-                                                                  ? Colors.white
-                                                                  : (_suggestionStyle.labelTextStyle ??
-                                                                            _suggestionStyle.textStyle)
-                                                                        .color,
+                                                        if (item is String)
+                                                          Expanded(
+                                                            child: Text(
+                                                              item,
+                                                              style:
+                                                                  _suggestionStyle
+                                                                      .labelTextStyle ??
+                                                                  _suggestionStyle
+                                                                      .textStyle,
+                                                              overflow:
+                                                                  TextOverflow
+                                                                      .ellipsis,
                                                             ),
-                                                            overflow:
-                                                                TextOverflow
-                                                                    .ellipsis,
                                                           ),
-                                                        ),
                                                       ],
-                                                      if (item is String)
-                                                        Expanded(
-                                                          child: Text(
-                                                            item,
-                                                            style:
-                                                                _suggestionStyle
-                                                                    .labelTextStyle ??
-                                                                _suggestionStyle
-                                                                    .textStyle,
-                                                            overflow:
-                                                                TextOverflow
-                                                                    .ellipsis,
-                                                          ),
-                                                        ),
-                                                    ],
+                                                    ),
                                                   ),
-                                                ),
-                                              );
-                                            },
+                                                );
+                                              },
+                                            ),
                                           ),
                                         ),
                                       ),
                                     ),
-                                  ),
                                   if (_selectedSuggestionMd != null &&
                                       _lspSignatureNotifier.value == null)
                                     Positioned(
@@ -4117,6 +3991,154 @@ class _CodeForgeState extends State<CodeForge>
           ],
         );
       },
+    );
+  }
+
+  void _syncSuggestionDetails(dynamic item) {
+    if (item is LspCompletion) {
+      final key = _getSuggestionCacheKey(item);
+      if (!_suggestionDetailsCache.containsKey(key) &&
+          _controller.lspConfig != null) {
+        (() async {
+          try {
+            final data = await _controller.lspConfig!.resolveCompletionItem(
+              item.completionItem,
+            );
+            final mdText =
+                "${data['detail'] ?? ''}\n${(() {
+                  final doc = data['documentation'];
+                  if (doc == null) {
+                    return '';
+                  }
+
+                  if (doc is Map<String, dynamic> && doc.containsKey('value')) {
+                    return doc['value'];
+                  }
+
+                  return doc;
+                })()}";
+            if (!mounted) return;
+            setState(() {
+              final edits = data['additionalTextEdits'];
+              if (edits is List) {
+                try {
+                  _extraText = edits
+                      .map((e) => Map<String, dynamic>.from(e as Map))
+                      .toList();
+                } catch (_) {
+                  _extraText = edits.cast<Map<String, dynamic>>();
+                }
+              } else {
+                _extraText = [];
+              }
+              _suggestionDetailsCache[key] = mdText;
+              _selectedSuggestionMd = mdText;
+            });
+          } catch (e) {
+            debugPrint("Completion Resolve failed: ${e.toString()}");
+          }
+        })();
+      } else if (_suggestionDetailsCache.containsKey(key)) {
+        final cached = _suggestionDetailsCache[key];
+        if (_selectedSuggestionMd != cached) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            setState(() {
+              _selectedSuggestionMd = cached;
+            });
+          });
+        }
+      }
+    } else if (widget.enableLocalSuggestions) {
+      if (_selectedSuggestionMd != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          setState(() {
+            _selectedSuggestionMd = null;
+          });
+        });
+      }
+    }
+  }
+
+  void _acceptSuggestionAt(int indx, dynamic item) {
+    if (mounted) {
+      setState(() {
+        if (_isMobileSuggActive) {
+          _controller.currentlySelectedSuggestion = indx;
+        } else {
+          _sugSelIndex = indx;
+        }
+        if (item is _SnippetSuggestion) {
+          _insertSnippetWithCursors(item);
+          _isInjectingSnippets = true;
+          _suggestionNotifier.value = null;
+          _isInjectingSnippets = false;
+        } else {
+          final text = item is LspCompletion ? item.label : item as String;
+          _controller.insertAtCurrentCursor(text, replaceTypedChar: true);
+          if (_extraText.isNotEmpty) {
+            _controller.applyWorkspaceEdit(_extraText);
+          }
+          _suggestionNotifier.value = null;
+        }
+        _isSignatureInvoked = true;
+        _controller.callSignatureHelp();
+      });
+    }
+  }
+
+  CodeForgeSuggestion _describeSuggestion(dynamic item) {
+    return switch (item) {
+      LspCompletion(:final label, :final itemType, :final importUri) =>
+        CodeForgeSuggestion(
+          label: label,
+          kind: CodeForgeSuggestionKind.lsp,
+          type: itemType,
+          detail: importUri?.firstOrNull,
+        ),
+      _SnippetSuggestion(:final label) => CodeForgeSuggestion(
+        label: label,
+        kind: CodeForgeSuggestionKind.snippet,
+      ),
+      _ => CodeForgeSuggestion(
+        label: item as String,
+        kind: CodeForgeSuggestionKind.word,
+      ),
+    };
+  }
+
+  Widget _buildSuggestionPopup(
+    BuildContext context,
+    List<dynamic> sugg, {
+    required double left,
+    required double width,
+    required double below,
+    required double above,
+  }) {
+    final selectedIndex = _isMobile
+        ? _controller.currentlySelectedSuggestion
+        : _sugSelIndex;
+    if (selectedIndex != null && selectedIndex < sugg.length) {
+      _syncSuggestionDetails(sugg[selectedIndex]);
+    }
+    return Positioned.fill(
+      child: CustomSingleChildLayout(
+        delegate: _SuggestionPopupLayout(
+          left: left,
+          width: width,
+          below: below,
+          above: above,
+        ),
+        child: widget.suggestionPopupBuilder!(
+          context,
+          CodeForgeSuggestionDetails(
+            suggestions: [for (final item in sugg) _describeSuggestion(item)],
+            selectedIndex: selectedIndex,
+            onAccept: (index) => _acceptSuggestionAt(index, sugg[index]),
+          ),
+        ),
+      ),
     );
   }
 
@@ -11873,6 +11895,49 @@ class _BracketEntry {
   final String char;
   final int line;
   _BracketEntry(this.char, this.line);
+}
+
+/// Opens the popup below the caret line when it fits there or that side has
+/// more room, and above it otherwise, measuring the popup rather than
+/// estimating its height.
+class _SuggestionPopupLayout extends SingleChildLayoutDelegate {
+  final double left;
+  final double width;
+  final double below;
+  final double above;
+
+  const _SuggestionPopupLayout({
+    required this.left,
+    required this.width,
+    required this.below,
+    required this.above,
+  });
+
+  static const _maxHeight = 400.0;
+
+  @override
+  BoxConstraints getConstraintsForChild(BoxConstraints constraints) {
+    final room = max(constraints.maxHeight - below, above);
+    return BoxConstraints(
+      maxWidth: width,
+      maxHeight: room.clamp(0.0, _maxHeight),
+    );
+  }
+
+  @override
+  Offset getPositionForChild(Size size, Size childSize) {
+    final spaceBelow = size.height - below;
+    final opensBelow = childSize.height <= spaceBelow || spaceBelow >= above;
+    return Offset(left, opensBelow ? below : above - childSize.height);
+  }
+
+  @override
+  bool shouldRelayout(_SuggestionPopupLayout oldDelegate) {
+    return left != oldDelegate.left ||
+        width != oldDelegate.width ||
+        below != oldDelegate.below ||
+        above != oldDelegate.above;
+  }
 }
 
 class _SnippetSuggestion {
