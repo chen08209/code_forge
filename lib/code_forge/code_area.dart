@@ -4826,6 +4826,7 @@ class _CodeFieldRenderer extends RenderBox implements MouseTrackerAnnotation {
     _wrappedHeightIndexLineCount = lineCount;
     _wrappedHeightEstimate = nextEstimate;
     _wrappedHeightDeltas = List<double>.filled(lineCount + 1, 0.0);
+    _clearLineYCaches();
     for (final entry in _lineHeightCache.entries) {
       if (entry.key >= 0 && entry.key < lineCount) {
         _addWrappedHeightDelta(entry.key, entry.value - nextEstimate);
@@ -4833,7 +4834,16 @@ class _CodeFieldRenderer extends RenderBox implements MouseTrackerAnnotation {
     }
   }
 
+  // Line and caret offsets are read from this index, so a cached one goes
+  // stale whenever a line's measured height replaces its estimate.
+  void _clearLineYCaches() {
+    _lineOffsetCache.clear();
+    _caretInfoCache.clear();
+  }
+
   void _addWrappedHeightDelta(int lineIndex, double delta) {
+    if (delta == 0) return;
+    _clearLineYCaches();
     for (
       var index = lineIndex + 1;
       index < _wrappedHeightDeltas.length;
@@ -7768,7 +7778,7 @@ class _CodeFieldRenderer extends RenderBox implements MouseTrackerAnnotation {
         );
         if (lineWrap) {
           lineHeight = paragraph.height;
-          _lineHeightCache[i] = paragraph.height;
+          _cacheWrappedLineHeight(i, paragraph.height);
         }
       } else {
         if (_lineTextCache.containsKey(i)) {
@@ -7792,7 +7802,7 @@ class _CodeFieldRenderer extends RenderBox implements MouseTrackerAnnotation {
           }
 
           if (lineWrap) {
-            _lineHeightCache[i] = paragraph.height;
+            _cacheWrappedLineHeight(i, paragraph.height);
             lineHeight = paragraph.height;
             if (isRTL) {
               lineHeight = paragraph.height;
